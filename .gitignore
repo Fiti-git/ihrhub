@@ -1,0 +1,88 @@
+# =========================
+# Secrets — NEVER commit
+# =========================
+.env
+.env.local
+.env.*.local
+!.env.example
+apps/*/.env
+apps/*/.env.local
+apps/*/.env.*.local
+*.pem
+*.key
+*.crt
+*.p12
+secrets/
+.cf-tunnel-token
+.cf-tunnel-runtoken
+
+# =========================
+# Node / Next.js
+# =========================
+node_modules/
+.next/
+out/
+.turbo/
+.vercel/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+.yarn/install-state.gz
+
+# =========================
+# Python / Django
+# =========================
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.venv/
+venv/
+env/
+ENV/
+.pytest_cache/
+.mypy_cache/
+.coverage
+.coverage.*
+htmlcov/
+
+# Django-generated
+staticfiles/
+media/
+db.sqlite3
+db.sqlite3-journal
+*.log
+
+# =========================
+# Docker
+# =========================
+compose-build.log
+build.log
+build-prod.log
+rebuild*.log
+local-build.log
+ihrhub-images.tar.gz
+ihrhub-frontends.tar.gz
+*.tar
+*.tar.gz
+
+# =========================
+# IDE / OS
+# =========================
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+~$*
+*.sublime-project
+*.sublime-workspace
+
+# =========================
+# Local-only dirs
+# =========================
+_archive/
+scratchpad/
+tmp/

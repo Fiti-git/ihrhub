@@ -1,0 +1,488 @@
+export const dasboardNavigation = [
+  // Common
+  {
+    id: 1,
+    name: "Dashboard",
+    icon: "flaticon-home",
+    pathByRole: {
+      "Job Provider": "/job-provider",
+      "Freelancer": "/freelancer",
+    },
+    roles: ["Freelancer", "Job Provider"],
+  },
+  {
+    id: 2,
+    name: "Messages",
+    icon: "flaticon-chat",
+    path: "/message",
+    roles: ["Freelancer", "Job Provider"],
+  },
+  // {
+  //   id: 4,
+  //   name: "Reviews",
+  //   icon: "flaticon-review-1",
+  //   path: "/reviews",
+  //   roles: ["Employee", "Employer"],
+  // },
+  {
+    id: 5,
+    name: "Wallet",
+    icon: "flaticon-wallet",
+    path: "/statements",
+    roles: ["Freelancer", "Job Provider"],
+  },
+
+  // Employee
+  // {
+  //   id: 6,
+  //   name: "My Proposals",
+  //   icon: "flaticon-document",
+  //   path: "/proposals",
+  //   roles: ["Employee"],
+  // },
+  {
+    id: 7,
+    name: "Mange Projects",
+    icon: "flaticon-content",
+    path: "/my-projects",
+    roles: ["Freelancer"],
+  },
+  {
+    id: 8,
+    name: "Manage Jobs",
+    icon: "flaticon-presentation",
+    path: "/manage-myjobs",
+    roles: ["Freelancer"],
+  },
+  // {
+  //   id: 9,
+  //   name: "Add Service",
+  //   icon: "flaticon-document",
+  //   path: "/add-service",
+  //   roles: ["Employee"],
+  // },
+
+  // Employer
+  {
+    id: 10,
+    name: "Manage Jobs",
+    icon: "flaticon-briefcase",
+    path: "/manage-jobs",
+    roles: ["Job Provider"],
+  },
+  {
+    id: 11,
+    name: "Manage Project",
+    icon: "flaticon-working",
+    path: "/manage-projects",
+    roles: ["Job Provider"],
+  },
+  // {
+  //   id: 12,
+  //   name: "Services",
+  //   icon: "flaticon-content",
+  //   path: "/request-services",
+  //   roles: ["Employer"],
+  // },
+
+  // Common (Bottom)
+  {
+    id: 13,
+    name: "My Profile",
+    icon: "flaticon-photo",
+    pathByRole: {
+      "Job Provider": "/jp-profile",
+      Freelancer: "/profile",
+    },
+    roles: ["Freelancer", "Job Provider"],
+  },
+
+  {
+    id: 14,
+    name: "Logout",
+    icon: "flaticon-logout",
+    path: "/logout",
+    roles: ["Freelancer", "Job Provider"],
+  },
+  {
+    id: 15,
+    name: "Support",
+    icon: "flaticon-question",
+    path: "/help",
+    roles: ["Freelancer", "Job Provider"],
+  },
+  {
+    id: 99,
+    name: "Explore",
+    icon: "flaticon-search",
+    path: "/explore",
+    roles: [], // <-- Show to everyone, including users with no role
+  },
+  {
+    id: 100,
+    name: "Login",
+    icon: "flaticon-user",
+    path: "/login",
+    roles: ["undefined"], // Visible even without a role
+  }
+
+
+
+];
+
+
+
+export const invoice = [
+  {
+    id: 1,
+    invoiceId: 99,
+    invoiceName: "App Services",
+    purchaseDate: "April 9, 2023",
+    amount: 1.2,
+    status: 1,
+  },
+  {
+    id: 2,
+    invoiceId: 99,
+    invoiceName: "App Services",
+    purchaseDate: "April 9, 2023",
+    amount: 1.2,
+    status: 2,
+  },
+  {
+    id: 3,
+    invoiceId: 99,
+    invoiceName: "App Services",
+    purchaseDate: "April 9, 2023",
+    amount: 1.2,
+    status: 2,
+  },
+  {
+    id: 4,
+    invoiceId: 99,
+    invoiceName: "App Services",
+    purchaseDate: "April 9, 2023",
+    amount: 1.2,
+    status: 3,
+  },
+  {
+    id: 5,
+    invoiceId: 99,
+    invoiceName: "App Services",
+    purchaseDate: "April 9, 2023",
+    amount: 1.2,
+    status: 3,
+  },
+  {
+    id: 6,
+    invoiceId: 99,
+    invoiceName: "App Services",
+    purchaseDate: "April 9, 2023",
+    amount: 1.2,
+    status: 2,
+  },
+  {
+    id: 7,
+    invoiceId: 99,
+    invoiceName: "App Services",
+    purchaseDate: "April 9, 2023",
+    amount: 1.2,
+    status: 2,
+  },
+  {
+    id: 8,
+    invoiceId: 99,
+    invoiceName: "App Services",
+    purchaseDate: "April 9, 2023",
+    amount: 1.2,
+    status: 1,
+  },
+  {
+    id: 9,
+    invoiceId: 99,
+    invoiceName: "App Services",
+    purchaseDate: "April 9, 2023",
+    amount: 1.2,
+    status: 3,
+  },
+];
+
+export const payout = [
+  {
+    id: 1,
+    amount: 1.8,
+    date: "April 9, 2023",
+    method: "Paypal",
+    status: 1,
+  },
+  {
+    id: 2,
+    amount: 1.8,
+    date: "April 9, 2023",
+    method: "Payoneer",
+    status: 2,
+  },
+  {
+    id: 3,
+    amount: 1.8,
+    date: "April 9, 2023",
+    method: "Bank Transfer",
+    status: 2,
+  },
+  {
+    id: 4,
+    amount: 1.8,
+    date: "April 9, 2023",
+    method: "Bank Transfer",
+    status: 2,
+  },
+  {
+    id: 5,
+    amount: 1.8,
+    date: "April 9, 2023",
+    method: "Paypal",
+    status: 2,
+  },
+  {
+    id: 6,
+    amount: 1.8,
+    date: "April 9, 2023",
+    method: "Bank Transfer",
+    status: 2,
+  },
+  {
+    id: 7,
+    amount: 1.8,
+    date: "April 9, 2023",
+    method: "Paypal",
+    status: 1,
+  },
+  {
+    id: 8,
+    amount: 1.8,
+    date: "April 9, 2023",
+    method: "Payoneer",
+    status: 3,
+  },
+  {
+    id: 9,
+    amount: 1.8,
+    date: "April 9, 2023",
+    method: "Payoneer",
+    status: 1,
+  },
+  {
+    id: 10,
+    amount: 1.8,
+    date: "April 9, 2023",
+    method: "Paypal",
+    status: 3,
+  },
+];
+
+export const statement = [
+  {
+    id: 1,
+    date: "April 9, 2023",
+    type: 1,
+    Employee: "Jane Smith",
+    client: "Acme Corp",
+    amount: 829,
+  },
+  {
+    id: 2,
+    date: "April 10, 2023",
+    type: 1,
+    Employee: "Mike Johnson",
+    client: "Beta LLC",
+    amount: 1200,
+  },
+  {
+    id: 3,
+    date: "April 11, 2023",
+    type: 2,
+    Employee: "Anna Lee",
+    client: "Gamma Inc",
+    amount: 300,
+  },
+  {
+    id: 4,
+    date: "April 12, 2023",
+    type: 1,
+    Employee: "Chris Martin",
+    client: "Delta Co",
+    amount: 450,
+  },
+  {
+    id: 5,
+    date: "April 13, 2023",
+    type: 2,
+    Employee: "Sara Parker",
+    client: "Epsilon Ltd",
+    amount: 600,
+  },
+  {
+    id: 6,
+    date: "April 14, 2023",
+    type: 1,
+    Employee: "David Green",
+    client: "Zeta Solutions",
+    amount: 950,
+  },
+  {
+    id: 7,
+    date: "April 15, 2023",
+    type: 1,
+    Employee: "Emily Brown",
+    client: "Eta Enterprises",
+    amount: 400,
+  },
+  {
+    id: 8,
+    date: "April 16, 2023",
+    type: 2,
+    Employee: "Tom Wilson",
+    client: "Theta Partners",
+    amount: 700,
+  },
+];
+
+
+
+
+
+export const manageService = [
+  {
+    id: 1,
+    img: "/images/listings/g-1.jpg",
+    title: "I will design modern websites in figma or adobe xd",
+    list: [
+      "Delivered within a day",
+      "Delivery Time Decreased",
+      "Upload apps to Stores",
+    ],
+    category: "Web & App Design",
+    cost: 500,
+  },
+  {
+    id: 2,
+    img: "/images/listings/g-2.jpg",
+    title: "I will design modern websites in figma or adobe xd",
+    list: [
+      "Delivered within a day",
+      "Delivery Time Decreased",
+      "Upload apps to Stores",
+    ],
+    category: "Web & App Design",
+    cost: 500,
+  },
+  {
+    id: 3,
+    img: "/images/listings/g-3.jpg",
+    title: "I will design modern websites in figma or adobe xd",
+    list: [
+      "Delivered within a day",
+      "Delivery Time Decreased",
+      "Upload apps to Stores",
+    ],
+    category: "Web & App Design",
+    cost: 500,
+  },
+  {
+    id: 4,
+    img: "/images/listings/g-4.jpg",
+    title: "I will design modern websites in figma or adobe xd",
+    list: [
+      "Delivered within a day",
+      "Delivery Time Decreased",
+      "Upload apps to Stores",
+    ],
+    category: "Web & App Design",
+    cost: 500,
+  },
+  {
+    id: 5,
+    img: "/images/listings/g-5.jpg",
+    title: "I will design modern websites in figma or adobe xd",
+    list: [
+      "Delivered within a day",
+      "Delivery Time Decreased",
+      "Upload apps to Stores",
+    ],
+    category: "Web & App Design",
+    cost: 500,
+  },
+];
+
+export const managejob = [
+  {
+    id: 1,
+    img: "/images/team/client-2.png",
+    title: "Marketing and Communications Manager",
+    server: "Mailchimp",
+    application: 3,
+    created: "October 27, 2017",
+    expired: "April 25, 2011",
+    status: 1,
+  },
+  {
+    id: 2,
+    img: "/images/team/client-3.png",
+    title: "Software Engineer",
+    server: "Google",
+    application: 10,
+    created: "June 15, 2022",
+    expired: "August 30, 2022",
+    status: 1,
+  },
+  {
+    id: 3,
+    img: "/images/team/client-1.png",
+    title: "Graphic Designer",
+    server: "Adobe",
+    application: 5,
+    created: "April 8, 2023",
+    expired: "July 15, 2023",
+    status: 1,
+  },
+  {
+    id: 4,
+    img: "/images/team/client-4.png",
+    title: "Sales Associate",
+    server: "Salesforce",
+    application: 2,
+    created: "January 12, 2023",
+    expired: "March 20, 2023",
+    status: 1,
+  },
+  {
+    id: 5,
+    img: "/images/team/client-5.png",
+    title: "Product Manager",
+    server: "Amazon",
+    application: 8,
+    created: "September 5, 2022",
+    expired: "December 10, 2022",
+    status: 1,
+  },
+  {
+    id: 6,
+    img: "/images/team/client-6.png",
+    title: "Customer Support Specialist",
+    server: "Zendesk",
+    application: 4,
+    created: "March 20, 2023",
+    expired: "June 30, 2023",
+    status: 1,
+  },
+  {
+    id: 7,
+    img: "/images/team/client-7.png",
+    title: "Data Analyst",
+    server: "Microsoft",
+    application: 6,
+    created: "November 10, 2022",
+    expired: "February 28, 2023",
+    status: 1,
+  },
+];

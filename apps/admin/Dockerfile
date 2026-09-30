@@ -1,0 +1,29 @@
+# ---- Build Stage ----
+FROM node:20-alpine AS builder
+WORKDIR /app
+
+COPY package*.json ./
+RUN npm install
+
+COPY . .
+
+# NEXT_PUBLIC_* vars are baked into the client bundle at build time.
+ARG NEXT_PUBLIC_API_BASE_URL
+ENV NEXT_PUBLIC_API_BASE_URL=${NEXT_PUBLIC_API_BASE_URL}
+
+RUN npm run build
+
+# ---- Production Stage ----
+FROM node:20-alpine AS runner
+WORKDIR /app
+
+COPY --from=builder /app/package*.json ./
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/.next ./.next
+COPY --from=builder /app/public ./public
+COPY --from=builder /app/next.config.ts ./next.config.ts
+
+ENV NODE_ENV=production
+EXPOSE 3000
+
+CMD ["npm", "start"]

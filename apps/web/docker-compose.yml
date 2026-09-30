@@ -1,0 +1,13 @@
+version: '3.8'
+
+services:
+  nextjs-app:
+    build: .
+    container_name: nextjs_app
+    ports:
+      - "80:3000"  # Host port 80 → Container port 3000
+    environment:
+      - NODE_ENV=production
+      # Add your environment variables here, for example:
+      # - NEXT_PUBLIC_API_URL=https://api.example.com
+    restart: unless-stopped

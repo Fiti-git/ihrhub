@@ -1,0 +1,69 @@
+# Production compose for arunalu@123.231.60.24
+# Images are BUILT LOCALLY, saved with `docker save`, and LOADED on the server.
+# The server never builds anything (CPU-sensitive box).
+#
+# Router forwards -> internal ports:
+#   external 1611 -> 8007 -> backend
+#   external 1612 -> 8008 -> web
+#   external 1613 -> 8009 -> admin
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    image: ihrhub-backend:prod
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      SECRET_KEY: ${SECRET_KEY}
+      DEBUG: ${DEBUG:-False}
+      ALLOWED_HOSTS: ${ALLOWED_HOSTS}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS}
+      DB_NAME: ${DB_NAME}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_HOST: db
+      DB_PORT: 5432
+    volumes:
+      - backend_media:/app/media
+    ports:
+      - "8007:8000"
+
+  web:
+    image: ihrhub-web:prod
+    restart: unless-stopped
+    depends_on:
+      - backend
+    environment:
+      NEXT_PUBLIC_API_URL: ${WEB_API_URL}
+    ports:
+      - "8008:3000"
+
+  admin:
+    image: ihrhub-admin:prod
+    restart: unless-stopped
+    depends_on:
+      - backend
+    environment:
+      NEXT_PUBLIC_API_BASE_URL: ${ADMIN_API_URL}
+    ports:
+      - "8009:3000"
+
+volumes:
+  db_data:
+  backend_media:

@@ -1,0 +1,799 @@
+from rest_framework import viewsets, status, permissions
+from rest_framework.response import Response
+from rest_framework.decorators import action
+from drf_yasg.utils import swagger_auto_schema
+from django.db import models
+from django.shortcuts import get_object_or_404
+from django.utils import timezone
+from django.contrib.auth.models import User
+from .models import JobPosting, JobApplication, JobInterview, JobOffer, ApplicationWithdrawal
+from .serializers import (
+    JobPostingSerializer, JobApplicationSerializer, JobApplicationUpdateSerializer,
+    JobInterviewSerializer, JobOfferSerializer, JobOfferCreateSerializer,
+    JobOfferUpdateSerializer, ApplicationWithdrawalSerializer
+)
+
+from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
+
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework import permissions
+from profiles.models import FreelancerProfile
+
+class JobPostingViewSet(viewsets.ModelViewSet):
+    queryset = JobPosting.objects.all()
+    serializer_class = JobPostingSerializer
+    lookup_field = 'id'
+    lookup_url_kwarg = 'job_id'
+    permission_classes = [permissions.IsAuthenticated]  # default; overridden per action below
+
+    def get_permissions(self):
+        """Allow public access to list/retrieve; require auth for mutations."""
+        if getattr(self, 'action', None) in ['list', 'retrieve']:
+            return [permissions.AllowAny()]
+        return [permissions.IsAuthenticated()]
+    
+    def create(self, request, *args, **kwargs):
+        """POST /api/job-posting - Create job posting"""
+        serializer = self.get_serializer(data=request.data)
+        if serializer.is_valid():
+            from profiles.models import JobProviderProfile
+            try:
+                job_provider = JobProviderProfile.objects.filter(user=request.user).first()
+                job = serializer.save(job_provider=job_provider)
+                return Response({
+                    "job_id": job.id,
+                    "message": "Job posted successfully"
+                }, status=status.HTTP_201_CREATED)
+            except Exception as e:
+                return Response({
+                    "error": str(e)
+                }, status=status.HTTP_400_BAD_REQUEST)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+    def retrieve(self, request, *args, **kwargs):
+        """GET /api/job-posting/{job_id} - Get job posting details"""
+        instance = self.get_object()
+        return Response({
+            "job_id": instance.id,
+            "job_title": instance.job_title,
+            "department": instance.department,
+            "job_type": instance.job_type,
+            "work_location": instance.work_location,
+            "work_mode": instance.work_mode,
+            "role_overview": instance.role_overview,
+            "key_responsibilities": instance.key_responsibilities,
+            "required_qualifications": instance.required_qualifications,
+            "preferred_qualifications": instance.preferred_qualifications,
+            "language_required": instance.languages_required,
+            "category": instance.job_category,
+            "salary_from": instance.salary_from,
+            "salary_to": instance.salary_to,
+            "currency": instance.currency,
+            "application_deadline": instance.application_deadline.strftime('%Y-%m-%d') if instance.application_deadline else None,
+            "interview_mode": instance.interview_mode,
+            "hiring_manager": instance.hiring_manager,
+            "number_of_openings": instance.number_of_openings,
+            "expected_start_date": instance.expected_start_date.strftime('%Y-%m-%d') if instance.expected_start_date else None,
+            "screening_questions": instance.screening_questions,
+            "health_insurance": instance.health_insurance,
+            "remote_work": instance.remote_work,
+            "paid_leave": instance.paid_leave,
+            "bonus": instance.bonus,
+            "date_posted": instance.date_posted.strftime('%Y-%m-%d') if instance.date_posted else None,
+            "job_status": instance.job_status,
+            
+
+        })
+    
+    def list(self, request, *args, **kwargs):
+        """GET /api/job-posting - List all job postings"""
+        queryset = self.get_queryset()
+        
+        # Apply filters from query parameters
+        location = request.query_params.get('location')
+        if location:
+            queryset = queryset.filter(work_location__icontains=location)
+        
+        job_type = request.query_params.get('job_type')
+        if job_type:
+            queryset = queryset.filter(job_type__icontains=job_type)
+        
+        category = request.query_params.get('category')
+        if category:
+            queryset = queryset.filter(job_category__icontains=category)
+        
+        # Format response
+        jobs_list = []
+        for job in queryset:
+            jobs_list.append({
+                "job_id": job.id,
+                "job_title": job.job_title,
+                "salary_range": f"{job.salary_from:,} - {job.salary_to:,} {job.currency}" if job.salary_from and job.salary_to else "Not specified",
+                "location": job.work_location,
+                "date_posted": job.date_posted.strftime('%Y-%m-%d') if job.date_posted else None,
+                "job_status": job.job_status,
+                "job_category": job.job_category,
+                "job_type": job.job_type,
+            })
+        
+        return Response({"jobs": jobs_list})
+
+    @action(detail=False, methods=['get'], url_path='job-manage')
+    def job_manage(self, request):
+        """GET /api/job-posting/job-manage?job_provider_id=ID"""
+
+        job_provider_id = request.query_params.get('job_provider_id') or request.query_params.get('provider_id')
+
+        if not job_provider_id and request.user and request.user.is_authenticated:
+            try:
+                from profiles.models import JobProviderProfile
+                profile = JobProviderProfile.objects.filter(user=request.user).first()
+                if profile:
+                    job_provider_id = profile.id
+            except Exception:
+                pass
+
+        if not job_provider_id:
+            return Response({"error": "job_provider_id is required"}, status=status.HTTP_400_BAD_REQUEST)
+
+        # -----------------------------------------
+        # Jobs
+        # -----------------------------------------
+        jobs_qs = JobPosting.objects.filter(job_provider_id=job_provider_id)
+
+        # -----------------------------------------
+        # Collect ALL applications ONCE
+        # -----------------------------------------
+        applications_all = JobApplication.objects.filter(job__in=jobs_qs)
+
+        freelancer_ids = set(applications_all.values_list("freelancer_id", flat=True))
+
+        # -----------------------------------------
+        # Fetch freelancer profiles ONCE
+        # -----------------------------------------
+        from profiles.models import FreelancerProfile
+
+        profiles_qs = (
+            FreelancerProfile.objects
+            .select_related("user")
+            .filter(id__in=freelancer_ids)
+        )
+
+        freelancer_profiles = {}
+        for p in profiles_qs:
+            freelancer_profiles[p.id] = {
+                "profile_id": p.id,
+                "user_id": p.user_id,
+                "full_name": p.full_name,
+                "email": p.user.email if p.user else None,
+                "phone": p.phone_number,
+                "skills": p.skills,
+                "experience_level": p.experience_level,
+                "profile_image": p.profile_image.url if p.profile_image else None,
+            }
+
+        # -----------------------------------------
+        # Build response (NO breaking changes)
+        # -----------------------------------------
+        result_jobs = []
+
+        for job in jobs_qs:
+            job_dict = {
+                "job_id": job.id,
+                "job_title": job.job_title,
+                "department": job.department,
+                "job_type": job.job_type,
+                "work_location": job.work_location,
+                "work_mode": job.work_mode,
+                "role_overview": job.role_overview,
+                "key_responsibilities": job.key_responsibilities,
+                "required_qualifications": job.required_qualifications,
+                "preferred_qualifications": job.preferred_qualifications,
+                "languages_required": job.languages_required,
+                "job_category": job.job_category,
+                "salary_from": job.salary_from,
+                "salary_to": job.salary_to,
+                "currency": job.currency,
+                "application_deadline": job.application_deadline.strftime('%Y-%m-%d') if job.application_deadline else None,
+                "interview_mode": job.interview_mode,
+                "hiring_manager": job.hiring_manager,
+                "number_of_openings": job.number_of_openings,
+                "expected_start_date": job.expected_start_date.strftime('%Y-%m-%d') if job.expected_start_date else None,
+                "screening_questions": job.screening_questions,
+                "file_upload": job.file_upload,
+                "health_insurance": job.health_insurance,
+                "remote_work": job.remote_work,
+                "paid_leave": job.paid_leave,
+                "bonus": job.bonus,
+                "date_posted": job.date_posted.strftime('%Y-%m-%d %H:%M:%S') if job.date_posted else None,
+                "job_status": job.job_status,
+            }
+
+            applications_list = []
+
+            for app in applications_all.filter(job=job):
+                app_dict = {
+                    "application_id": app.id,
+                    "freelancer_id": app.freelancer_id,  # ⛔ DO NOT CHANGE
+                    "resume_url": app.resume.url if app.resume else None,
+                    "cover_letter": app.cover_letter,
+                    "expected_rate": app.expected_rate,
+                    "status": app.status,
+                    "date_applied": app.date_applied.strftime('%Y-%m-%d %H:%M:%S') if app.date_applied else None,
+                    "rating": app.rating,
+                    "comments": app.comments,
+
+                    # ✅ SAFE ADDITION
+                    "freelancer_profile": freelancer_profiles.get(app.freelancer_id),
+                }
+
+                # Interviews
+                interviews_list = []
+                for iv in JobInterview.objects.filter(application=app):
+                    interviews_list.append({
+                        "interview_id": iv.id,
+                        "interview_date": iv.interview_date.strftime('%Y-%m-%d %H:%M:%S') if iv.interview_date else None,
+                        "interview_mode": iv.interview_mode,
+                        "status": iv.status,
+                        "interview_link": iv.interview_link,
+                        "interview_notes": iv.interview_notes,
+                        "rating": iv.rating,
+                        "comments": iv.comments,
+                    })
+
+                # Offers
+                offers_list = []
+                for of in JobOffer.objects.filter(application=app):
+                    offers_list.append({
+                        "offer_id": of.id,
+                        "offer_status": of.offer_status,
+                        "offer_details": of.offer_details,
+                        "date_offered": of.date_offered.strftime('%Y-%m-%d %H:%M:%S') if of.date_offered else None,
+                        "date_accepted": of.date_accepted.strftime('%Y-%m-%d %H:%M:%S') if of.date_accepted else None,
+                        "date_rejected": of.date_rejected.strftime('%Y-%m-%d %H:%M:%S') if of.date_rejected else None,
+                    })
+
+                app_dict["interviews"] = interviews_list
+                app_dict["offers"] = offers_list
+                applications_list.append(app_dict)
+
+            job_dict["applications"] = applications_list
+            result_jobs.append(job_dict)
+
+        return Response({
+            "job_provider_id": job_provider_id,
+            "jobs": result_jobs
+        })
+
+    def update(self, request, *args, **kwargs):
+        """PUT /api/job-posting/{job_id} - Update job posting"""
+        partial = kwargs.pop('partial', False)
+        # Require job_status to be provided for updates
+        if 'job_status' not in request.data:
+            return Response({"error": "job_status is required for update"}, status=status.HTTP_400_BAD_REQUEST)
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=partial)
+        if serializer.is_valid():
+            serializer.save()
+            return Response({"message": "Job posting updated"})
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+    def destroy(self, request, *args, **kwargs):
+        """DELETE /api/job-posting/{job_id} - Delete job posting"""
+        instance = self.get_object()
+        instance.delete()
+        return Response({"message": "Job posting deleted"}, status=status.HTTP_200_OK)
+        
+        return Response(
+            {'error': 'Invalid status'}, 
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+
+class JobApplicationViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet for Job Applications
+    """
+    queryset = JobApplication.objects.all()
+    serializer_class = JobApplicationSerializer
+    lookup_field = 'id'
+    lookup_url_kwarg = 'application_id'
+    parser_classes = [JSONParser, FormParser, MultiPartParser]
+    
+    def create(self, request, *args, **kwargs):
+        """POST /api/job-application - Apply to job"""
+        serializer = self.get_serializer(data=request.data)
+        if serializer.is_valid():
+            job_id = serializer.validated_data.pop('job_id')
+
+            try:
+                job = JobPosting.objects.get(id=job_id)
+            except JobPosting.DoesNotExist:
+                return Response({"error": "Job posting not found"}, status=status.HTTP_404_NOT_FOUND)
+
+            application = JobApplication.objects.create(
+                job=job,
+                freelancer_id=serializer.validated_data.get('freelancer_id'),
+                resume=serializer.validated_data.get('resume'),
+                cover_letter=serializer.validated_data.get('cover_letter'),
+                expected_rate=serializer.validated_data.get('expected_rate'),
+            )
+
+            return Response({
+                "application_id": application.id,
+                "message": "Application submitted successfully"
+            }, status=status.HTTP_201_CREATED)
+
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    
+    @action(detail=False, methods=['get'], url_path=r'job/(?P<job_id>[0-9]+)')
+    def get_applications_for_job(self, request, job_id=None):
+        """GET /api/job-application/job/{job_id} - Fetch applications for a job"""
+
+        applications = self.queryset.filter(job_id=job_id)
+
+        # -------------------------------------------------
+        # Fetch job provider user_id
+        # -------------------------------------------------
+        job_posting = (
+            JobPosting.objects
+            .select_related('job_provider')
+            .filter(id=job_id)
+            .first()
+        )
+        jobprovider_user_id = (
+            job_posting.job_provider.user_id
+            if job_posting and job_posting.job_provider
+            else None
+        )
+
+        # -------------------------------------------------
+        # Collect freelancer_ids (profile IDs)
+        # -------------------------------------------------
+        freelancer_ids = set(applications.values_list("freelancer_id", flat=True))
+
+        # -------------------------------------------------
+        # Fetch freelancer profiles ONCE
+        # -------------------------------------------------
+        from profiles.models import FreelancerProfile
+
+        profiles_qs = (
+            FreelancerProfile.objects
+            .select_related("user")
+            .filter(id__in=freelancer_ids)
+        )
+
+        profiles_map = {}
+        for p in profiles_qs:
+            profiles_map[p.id] = {
+                "profile_id": p.id,
+                "user_id": p.user_id,
+                "full_name": p.full_name,
+                "username": p.user.username if p.user else None,
+            }
+
+        # -------------------------------------------------
+        # Build response (NO breaking changes)
+        # -------------------------------------------------
+        applications_list = []
+
+        for app in applications:
+            profile = profiles_map.get(app.freelancer_id)
+
+            freelancer_name = (
+                profile["full_name"]
+                if profile and profile.get("full_name")
+                else (
+                    profile["username"]
+                    if profile and profile.get("username")
+                    else f"Freelancer {app.freelancer_id}"
+                )
+            )
+
+            freelancer_user_id = (
+                profile["user_id"]
+                if profile
+                else app.freelancer_id
+            )
+
+            applications_list.append({
+                "application_id": app.id,
+                "freelancer_id": app.freelancer_id,     # ⛔ unchanged
+                "freelancer_user_id": freelancer_user_id,
+                "freelancer_name": freelancer_name,
+                "employer_user_id": jobprovider_user_id,
+                "resume_url": app.resume.url if app.resume else None,
+                "cover_letter_url": app.cover_letter,
+                "status": app.status,
+                "rating": app.rating,
+                "chat_users": (
+                    [freelancer_user_id, jobprovider_user_id]
+                    if jobprovider_user_id
+                    else [freelancer_user_id]
+                ),
+
+                # ✅ SAFE ADDITION (optional for frontend)
+                "freelancer_profile": profile,
+            })
+
+        return Response({"applications": applications_list})
+
+
+    # ✅ New method to fix your error
+    @action(detail=True, methods=['put'], url_path='update')
+    def update_application_status(self, request, application_id=None):
+        """PUT /api/job-application/update/{application_id}/ - Update application status or rating"""
+        try:
+            application = self.get_object()
+        except JobApplication.DoesNotExist:
+            return Response({"error": "Application not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        status_value = request.data.get("status")
+        rating_value = request.data.get("rating")
+
+        if not status_value and rating_value is None:
+            return Response({"error": "Provide at least 'status' or 'rating' to update."},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        if status_value:
+            application.status = status_value
+        if rating_value is not None:
+            application.rating = rating_value
+
+        application.save()
+
+        return Response({
+            "message": "Application updated successfully",
+            "application_id": application.id,
+            "status": application.status,
+            "rating": application.rating
+        }, status=status.HTTP_200_OK)
+
+class JobInterviewViewSet(viewsets.ModelViewSet):
+    """
+    Simplified JobInterview ViewSet following the example pattern
+    """
+    queryset = JobInterview.objects.all()
+    serializer_class = JobInterviewSerializer
+    lookup_field = 'id'
+    lookup_url_kwarg = 'interview_id'
+    
+    @action(detail=False, methods=['post'], url_path='schedule')
+    def schedule_interview(self, request):
+        """POST /api/job-interview/schedule - Schedule an interview"""
+        serializer = self.get_serializer(data=request.data)
+        if serializer.is_valid():
+            # Get application_id from validated data and remove it
+            application_id = serializer.validated_data.pop('application_id')
+            job_id = serializer.validated_data.get('job_id')
+            freelance_id = serializer.validated_data.get('freelance_id')
+            
+            try:
+                application = JobApplication.objects.get(id=application_id)
+            except JobApplication.DoesNotExist:
+                return Response(
+                    {"error": "Job application not found"}, 
+                    status=status.HTTP_404_NOT_FOUND
+                )
+
+            # Validate provided job_id and freelance_id match the application
+            if not job_id or not freelance_id:
+                return Response(
+                    {"error": "job_id and freelance_id are required"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            if int(job_id) != int(application.job_id) or int(freelance_id) != int(application.freelancer_id):
+                return Response(
+                    {"error": "job_id or freelance_id does not match the application"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            # Create the interview manually to ensure proper field handling
+            interview = JobInterview.objects.create(
+                application=application,
+                # Populate new denormalized fields for convenience/queries
+                job=application.job,
+                freelancer_id=application.freelancer_id,
+                interview_date=serializer.validated_data['interview_date'],
+                interview_mode=serializer.validated_data['interview_mode'],
+                interview_link=serializer.validated_data.get('interview_link', ''),
+                interview_notes=serializer.validated_data.get('interview_notes', ''),
+                status='Scheduled'
+            )
+            
+            return Response({
+                "interview_id": interview.id,
+                "message": "Interview scheduled successfully"
+            }, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+    def retrieve(self, request, *args, **kwargs):
+        """GET /api/job-interview/{interview_id} - Fetch interview details"""
+        instance = self.get_object()
+        return Response({
+            "interview_id": instance.id,
+            "application_id": instance.application.id,
+            "date_time": instance.interview_date.strftime('%Y-%m-%dT%H:%M:%SZ') if instance.interview_date else None,
+            "interview_mode": instance.interview_mode,
+            "interview_link": instance.interview_link,
+            "interview_notes": instance.interview_notes
+        })
+
+    @action(detail=False, methods=['get'], url_path='application/(?P<application_id>[0-9]+)')
+    def get_by_application(self, request, application_id=None):
+        """GET /api/job-interview/application/{application_id} - Return latest interview status and link for an application"""
+        interviews = JobInterview.objects.filter(application_id=application_id)
+        if not interviews.exists():
+            return Response({"error": "Interview not found for the given application_id"}, status=status.HTTP_404_NOT_FOUND)
+
+        # Return the most recent interview (by interview_date)
+        interview = interviews.order_by('-interview_date').first()
+        return Response({
+            "application_id": application_id,
+            "status": interview.status,
+            "interview_link": interview.interview_link,
+            "interview_date": interview.interview_date.strftime('%Y-%m-%dT%H:%M:%SZ') if interview.interview_date else None,
+            "interview_mode": interview.interview_mode,
+            "interview_notes": interview.interview_notes
+        })
+    
+    @action(detail=False, methods=['post'], url_path='feedback')
+    def provide_feedback(self, request):
+        """POST /api/job-interview/feedback - Provide interview feedback"""
+        interview_id = request.data.get('interview_id')
+        if not interview_id:
+            return Response({"error": "interview_id is required"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        interview = get_object_or_404(JobInterview, id=interview_id)
+        
+        rating = request.data.get('rating')
+        comments = request.data.get('comments')
+        
+        if rating:
+            interview.rating = rating
+        if comments:
+            interview.comments = comments
+        interview.status = 'Completed'
+        interview.save()
+        
+        return Response({"message": "Feedback submitted successfully"})
+    
+    @action(detail=False, methods=['post'], url_path='reschedule')
+    def reschedule_interview(self, request):
+        """POST /api/job-interview/reschedule - Reschedule an interview"""
+        interview_id = request.data.get('interview_id')
+        if not interview_id:
+            return Response({"error": "interview_id is required"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        interview = get_object_or_404(JobInterview, id=interview_id)
+        
+        new_date_time = request.data.get('new_date_time')
+        new_interview_link = request.data.get('new_interview_link')
+        
+        if new_date_time:
+            from datetime import datetime
+            interview.interview_date = datetime.fromisoformat(new_date_time.replace('Z', '+00:00'))
+        if new_interview_link:
+            interview.interview_link = new_interview_link
+        interview.status = 'Rescheduled'
+        interview.save()
+        
+        return Response({"message": "Interview rescheduled successfully"})
+
+
+class JobOfferViewSet(viewsets.ModelViewSet):
+    """
+    Simplified JobOffer ViewSet following the example pattern
+    """
+    queryset = JobOffer.objects.all()
+    serializer_class = JobOfferSerializer
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
+    
+    @swagger_auto_schema(request_body=JobOfferCreateSerializer, responses={201: JobOfferSerializer()})
+    @action(detail=False, methods=['post'], url_path='create')
+    def create_offer(self, request):
+        """POST /api/job-offer/create - Create a job offer"""
+        # Validate input using JobOfferCreateSerializer so Swagger shows fields
+        serializer = JobOfferCreateSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        validated = serializer.validated_data
+        application_id = validated.get('application_id')
+        offer_status = validated.get('offer_status', 'Pending')
+        offer_details = validated.get('offer_details')
+        multi_doc = validated.get('multi_doc')
+
+        try:
+            application = JobApplication.objects.get(id=application_id)
+        except JobApplication.DoesNotExist:
+            return Response({"error": "Job application not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        # store offer_details as JSON string in the TextField
+        import json
+        offer_details_text = json.dumps(offer_details)
+
+        offer = JobOffer.objects.create(
+            application=application,
+            offer_status=offer_status,
+            offer_details=offer_details_text,
+            multi_doc=multi_doc
+        )
+
+        return Response({
+            "offer_id": offer.id,
+            "message": "Job offer created successfully"
+        }, status=status.HTTP_201_CREATED)
+    
+    @swagger_auto_schema(
+        request_body=JobOfferUpdateSerializer,
+        responses={200: JobOfferSerializer()}
+    )
+    @action(detail=False, methods=['put'], url_path='update')
+    def update_offer(self, request):
+        """PUT /api/job-offer/update - Update a job offer"""
+        import json
+        from django.utils import timezone
+        
+        offer_id = request.data.get('offer_id')
+        if not offer_id:
+            return Response(
+                {"error": "offer_id is required"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            offer = JobOffer.objects.get(id=offer_id)
+        except JobOffer.DoesNotExist:
+            return Response(
+                {"error": "Job offer not found"},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Validate input using JobOfferUpdateSerializer
+        serializer = JobOfferUpdateSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        
+        validated = serializer.validated_data
+        
+        # Update offer_status
+        if 'offer_status' in validated:
+            old_status = offer.offer_status
+            new_status = validated['offer_status']
+            offer.offer_status = new_status
+            
+            # Update date fields based on status changes
+            if new_status == 'Accepted' and old_status != 'Accepted':
+                offer.date_accepted = timezone.now()
+            elif new_status == 'Rejected' and old_status != 'Rejected':
+                offer.date_rejected = timezone.now()
+        
+        # Update offer_details
+        if 'offer_details' in validated:
+            offer_details = validated['offer_details']
+            # If it's already a JSON string, keep it; otherwise convert it
+            if isinstance(offer_details, str):
+                try:
+                    # Validate it's valid JSON
+                    json.loads(offer_details)
+                    offer.offer_details = offer_details
+                except json.JSONDecodeError:
+                    offer.offer_details = offer_details
+            else:
+                offer.offer_details = json.dumps(offer_details)
+        
+        # Update multi_doc if provided
+        if 'multi_doc' in validated and validated['multi_doc']:
+            offer.multi_doc = validated['multi_doc']
+        
+        offer.save()
+        
+        return Response({
+            "offer_id": offer.id,
+            "message": "Job offer updated successfully",
+            "offer_status": offer.offer_status
+        }, status=status.HTTP_200_OK)
+    
+    @swagger_auto_schema(
+        method='get',
+        responses={200: JobOfferSerializer(many=True)}
+    )
+    @action(detail=False, methods=['get'], url_path='all')
+    def get_all_offers(self, request):
+        """GET /api/job-offer/all - Get all job offers with all fields"""
+        offers = JobOffer.objects.all().select_related('application')
+        
+        offers_list = []
+        for offer in offers:
+            offers_list.append({
+                "offer_id": offer.id,
+                "application_id": offer.application.id,
+                "offer_status": offer.offer_status,
+                "offer_details": offer.offer_details,
+                "date_offered": offer.date_offered.strftime('%Y-%m-%d %H:%M:%S') if offer.date_offered else None,
+                "date_accepted": offer.date_accepted.strftime('%Y-%m-%d %H:%M:%S') if offer.date_accepted else None,
+                "date_rejected": offer.date_rejected.strftime('%Y-%m-%d %H:%M:%S') if offer.date_rejected else None,
+                "multi_doc": offer.multi_doc.url if offer.multi_doc else None,
+            })
+        
+        return Response({"offers": offers_list}, status=status.HTTP_200_OK)
+
+
+class ApplicationWithdrawalViewSet(viewsets.ModelViewSet):
+    queryset = ApplicationWithdrawal.objects.all()
+    serializer_class = ApplicationWithdrawalSerializer
+
+
+@api_view(['GET'])
+@permission_classes([permissions.IsAuthenticated])
+def get_jobs_for_freelancer(request, freelance_id):
+    """GET /api/freelance/{freelance_id} - Return jobs related to a freelancer.
+
+    Response: list of jobs with fields: job_id, job_title, job_category, date_posted, job_status
+    """
+    # Find applications by this freelancer id
+    applications = JobApplication.objects.filter(freelancer_id=freelance_id).select_related('job')
+
+    jobs_map = {}
+    for app in applications:
+        job = app.job
+        if job and job.id not in jobs_map:
+            jobs_map[job.id] = {
+                "job_id": job.id,
+                "job_title": job.job_title,
+                "job_category": job.job_category,
+                "date_posted": job.date_posted.strftime('%Y-%m-%d') if job.date_posted else None,
+                "job_status": job.job_status,
+            }
+
+    jobs_list = list(jobs_map.values())
+
+    return Response({"freelance_id": freelance_id, "jobs": jobs_list})
+
+
+@api_view(['GET'])
+@permission_classes([permissions.IsAuthenticated])
+def get_interviews_by_job(request, job_id):
+    """GET /api/interview/{job_id} - Return interviews for a job, filtered by access token
+
+    Response: { "interviews": [ {interview_date, interview_mode, status, interview_notes}, ... ] }
+    Filtering rules:
+      - If the user is a Freelancer (has FreelancerProfile), only return interviews where freelancer_id matches their profile id
+      - If the user is a Job Provider (has JobProviderProfile), only return interviews for jobs owned by that provider
+      - Otherwise, default to no data (empty list)
+    """
+    interviews_qs = JobInterview.objects.filter(job_id=job_id)
+
+    try:
+        from profiles.models import FreelancerProfile, JobProviderProfile
+
+        if hasattr(request, 'user') and request.user and request.user.is_authenticated:
+            # Check for freelancer role
+            freelancer_profile = FreelancerProfile.objects.filter(user=request.user).first()
+            if freelancer_profile:
+                interviews_qs = interviews_qs.filter(freelancer_id=freelancer_profile.id)
+            else:
+                # Check for job provider role
+                provider_profile = JobProviderProfile.objects.filter(user=request.user).first()
+                if provider_profile:
+                    interviews_qs = interviews_qs.filter(job__job_provider=provider_profile)
+                else:
+                    # Authenticated but no matching role; return empty
+                    interviews_qs = interviews_qs.none()
+    except Exception:
+        # On any error resolving profiles, return empty to avoid leaking data
+        interviews_qs = interviews_qs.none()
+
+    interviews_list = []
+    for iv in interviews_qs.order_by('-interview_date'):
+        interviews_list.append({
+            "interview_date": iv.interview_date.strftime('%Y-%m-%dT%H:%M:%SZ') if iv.interview_date else None,
+            "interview_mode": iv.interview_mode,
+            "status": iv.status,
+            "interview_notes": iv.interview_notes,
+            "interview_link": iv.interview_link,
+        })
+
+    return Response({"interviews": interviews_list})
